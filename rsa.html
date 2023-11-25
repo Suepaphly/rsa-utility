@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>RSA Key Pair Generation, Encryption, and Decryption</title>
+    <script>
+        async function generateKeys() {
+            let keySize = parseInt(document.getElementById("key-size").value);
+            const keyPair = await window.crypto.subtle.generateKey(
+                {
+                    name: "RSA-OAEP",
+                    modulusLength: keySize,
+                    publicExponent: new Uint8Array([1, 0, 1]),
+                    hash: "SHA-256",
+                },
+                true,
+                ["encrypt", "decrypt"]
+            );
+            window.publicKey = keyPair.publicKey;
+            window.privateKey = keyPair.privateKey;
+
+            window.publicKeyPem = await spkiToPem(keyPair.publicKey);
+            document.getElementById("public-key").value = window.publicKeyPem;
+            window.privateKeyPem = await pkcs8ToPem(keyPair.privateKey);
+            document.getElementById("private-key").value = window.privateKeyPem;
+        }
+
+        async function spkiToPem(key) {
+            const spki = await window.crypto.subtle.exportKey("spki", key);
+            return `-----BEGIN PUBLIC KEY-----\n${window.btoa(String.fromCharCode.apply(null, new Uint8Array(spki))).match(/.{1,64}/g).join("\n")}\n-----END PUBLIC KEY-----`;
+        }
+
+        async function pkcs8ToPem(key) {
+            const pkcs8 = await window.crypto.subtle.exportKey("pkcs8", key);
+            return `-----BEGIN PRIVATE KEY-----\n${window.btoa(String.fromCharCode.apply(null, new Uint8Array(pkcs8))).match(/.{1,64}/g).join("\n")}\n-----END PRIVATE KEY-----`;
+        }
+
+        async function encryptMessage() {
+            let message = document.getElementById("message").value;
+            let encoded = new TextEncoder().encode(message);
+            let ciphertext = await window.crypto.subtle.encrypt(
+                {
+                    name: "RSA-OAEP"
+                },
+                window.publicKey,
+                encoded
+            );
+            document.getElementById("encrypted-message").value = btoa(String.fromCharCode(...new Uint8Array(ciphertext)));
+        }
+
+        async function decryptMessage() {
+            let encryptedMessage = document.getElementById("encrypted-message").value;
+            let buffer = new Uint8Array(atob(encryptedMessage).split("").map(char => char.charCodeAt(0)));
+            let decrypted = await window.crypto.subtle.decrypt(
+                {
+                    name: "RSA-OAEP"
+                },
+                window.privateKey,
+                buffer
+            );
+            document.getElementById("decrypted-message").value = new TextDecoder().decode(decrypted);
+        }
+    </script>
+</head>
+<body>
+    Key Size: <input type="number" id="key-size" value="2048">
+    <button onclick="generateKeys()">Generate RSA Key Pair</button>
+    <br><br>
+    <textarea id="public-key" placeholder="Public Key" rows="10" cols="60"></textarea>
+    <br><br>
+    <textarea id="private-key" placeholder="Private Key" rows="10" cols="60"></textarea>
+    <br><br>
+    <textarea id="message" placeholder="Message to Encrypt"></textarea>
+    <button onclick="encryptMessage()">Encrypt Message</button>
+    <br><br>
+    <textarea id="encrypted-message" placeholder="Encrypted Message" readonly></textarea>
+    <button onclick="decryptMessage()">Decrypt Message</button>
+    <br><br>
+    <textarea id="decrypted-message" placeholder="Decrypted Message" readonly></textarea>
+</body>
+</html>
